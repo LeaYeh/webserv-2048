@@ -41,23 +41,64 @@ LocalStorageManager.prototype.localStorageSupported = function () {
 
 // Best score getters/setters
 LocalStorageManager.prototype.getBestScore = function () {
-  return this.storage.getItem(this.bestScoreKey) || 0;
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+      const [key, value] = cookie.trim().split('=');
+      if (key === 'bestScore') return parseInt(value, 10) || 0;
+  }
+  return 0;
 };
 
 LocalStorageManager.prototype.setBestScore = function (score) {
-  this.storage.setItem(this.bestScoreKey, score);
+  document.cookie = `bestScore=${score}; path=/`;
+  this.updateStateOnServer();
+};
+
+LocalStorageManager.prototype.updateStateOnServer = async function () {
+  const bestScore = this.getBestScore();
+
+  try {
+    const response = await fetch('/update-2048-state', {
+      method: 'POST',
+    });
+
+    if (response.ok) {
+      console.log('Best score updated on the server!');
+    } else {
+      console.error('Failed to update best score on the server:', response.statusText);
+    }
+  } catch (error) {
+    console.error('Error while updating best score on the server:', error);
+  }
 };
 
 // Game state getters/setters and clearing
 LocalStorageManager.prototype.getGameState = function () {
-  var stateJSON = this.storage.getItem(this.gameStateKey);
-  return stateJSON ? JSON.parse(stateJSON) : null;
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+    const [key, value] = cookie.trim().split('=');
+    if (key === this.gameStateKey) {
+      try {
+        return JSON.parse(decodeURIComponent(value));
+      } catch (error) {
+        console.error('Failed to parse game state from cookie:', error);
+        return null;
+      }
+    }
+  }
+  return null;
 };
 
 LocalStorageManager.prototype.setGameState = function (gameState) {
-  this.storage.setItem(this.gameStateKey, JSON.stringify(gameState));
+  try {
+    const stateJSON = encodeURIComponent(JSON.stringify(gameState));
+    document.cookie = `${this.gameStateKey}=${stateJSON}; path=/`;
+    this.updateStateOnServer();
+  } catch (error) {
+    console.error('Failed to save game state to cookie:', error);
+  }
 };
 
 LocalStorageManager.prototype.clearGameState = function () {
-  this.storage.removeItem(this.gameStateKey);
+  document.cookie = `${this.gameStateKey}=; path=/`;
 };
